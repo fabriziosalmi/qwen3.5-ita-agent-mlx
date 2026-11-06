@@ -1,129 +1,141 @@
 # qwen3.5-ita-agent-mlx
 
-Fine-tuning small Qwen3.5 models into Italian agents for MCP tools and the terminal, entirely in
-[MLX](https://github.com/ml-explore/mlx) on Apple Silicon. This repository holds the code that built and
-measured the two released models:
+Piccoli modelli Qwen3.5 addestrati come agenti italiani per strumenti MCP e terminale, interamente in
+[MLX](https://github.com/ml-explore/mlx) su Apple Silicon. Qui c'è il codice che ha costruito e misurato i due
+modelli pubblicati:
 
 - [`fabriziosalmi/Qwen3.5-2B-ita-agent-MLX-8bit`](https://huggingface.co/fabriziosalmi/Qwen3.5-2B-ita-agent-MLX-8bit)
 - [`fabriziosalmi/Qwen3.5-0.8B-ita-agent-MLX-8bit`](https://huggingface.co/fabriziosalmi/Qwen3.5-0.8B-ita-agent-MLX-8bit)
 
-The agent reads and writes files, manages notes and calendar events, computes dates and VAT with tools,
-fetches web pages, asks before deleting or changing data, and answers plain chat in Italian. It is not a
-coding model. Everything (data generation, training, evaluation) ran on two Mac mini M4 with 16 GB: no
-rented GPU, and no output of closed models in the training data.
+<p align="center"><img src="assets/demo.svg" alt="Tre task del test congelato: Qwen3.5-2B originale contro Qwen3.5-2B-ita-agent" width="100%"></p>
 
-What is here:
+L'agente legge e scrive file, gestisce note e appuntamenti, calcola date e IVA con gli strumenti, legge
+pagine web, chiede conferma prima di cancellare o modificare dati, e risponde in italiano anche in una
+semplice chat. Non è un modello per programmare. Tutto (generazione dei dati, training, valutazione) è girato
+su due Mac mini M4 da 16 GB: nessuna GPU a noleggio, e nessun output di modelli chiusi nei dati di training.
 
-- deterministic MCP environments, served as real MCP servers in-process (files, notes, calendar, web,
-  terminal, Italian date and tax tools, and two test-only servers);
-- an agent loop with a thin harness around the model, and scoring of every trajectory against
-  environment-state and answer checks;
-- frozen evaluation sets, and the per-task results behind the released models;
-- generated worlds and task families that produce verified training conversations by rejection sampling
-  from a Qwen3.5 teacher, with the filters applied to them;
-- LoRA fine-tuning for Qwen3.5 in MLX, on one Mac or on two as an MLX ring.
+La demo qui sopra mostra tre task veri del test congelato, eseguiti dal Qwen3.5-2B originale (senza harness,
+come si usa di solito) e dal 2B addestrato con il suo harness; la genera `scripts/demo.py` leggendo i file di
+`results/release/`, e ogni verdetto è verificato sui dati della corsa.
 
-## Results
+Cosa c'è nel repository:
 
-Greedy decoding, 8-bit MLX models, thinking off. A task passes only if the environment state and the
-answer pass their checks. Every number below is computed from the files in `results/release/`.
-"Harness" is the flag set used at release time, `intent+append+lint+replace+noedit+gate+hide+cal2`
-(see [The agent harness](#the-agent-harness)); "none" is plain mlx-lm use with a system prompt.
+- ambienti MCP deterministici, serviti come veri server MCP nello stesso processo (file, note, calendario,
+  web, terminale, strumenti italiani per date e tasse, e due server usati solo nel test);
+- un loop dell'agente con un harness leggero attorno al modello, e la valutazione di ogni traiettoria con
+  controlli sullo stato degli ambienti e sulla risposta;
+- set di valutazione congelati, e i risultati per task dei modelli pubblicati;
+- mondi generati e famiglie di task che producono conversazioni di training verificate, per rejection
+  sampling da un teacher Qwen3.5, con i filtri applicati;
+- fine-tuning LoRA di Qwen3.5 in MLX, su un Mac o su due collegati come ring MLX.
 
-| Model | test, harness | test, none | dev, harness | dev, none | fresh5, harness |
+## Risultati
+
+Decodifica greedy, modelli MLX a 8 bit, thinking spento. Un task è superato solo se lo stato degli ambienti
+e la risposta passano i loro controlli. Ogni numero qui sotto è calcolato dai file in `results/release/`.
+"Harness" è l'insieme di flag usato al rilascio, `intent+append+lint+replace+noedit+gate+hide+cal2` (vedi
+[Harness dell'agente](#harness-dellagente)); "nessuno" è il normale uso di mlx-lm con un system prompt.
+
+| Modello | test, harness | test, nessuno | dev, harness | dev, nessuno | fresh5, harness |
 |---|---|---|---|---|---|
-| Qwen3.5-0.8B stock | 32/112 | 26/112 | 19/88 | 12/88 | 33/296 |
+| Qwen3.5-0.8B originale | 32/112 | 26/112 | 19/88 | 12/88 | 33/296 |
 | Qwen3.5-0.8B-ita-agent | 49/112 | 41/112 | 54/88 | 38/88 | 204/296 |
-| Qwen3.5-2B stock | 48/112 | 58/112 | 38/88 | 37/88 | 96/296 |
+| Qwen3.5-2B originale | 48/112 | 58/112 | 38/88 | 37/88 | 96/296 |
 | Qwen3.5-2B-ita-agent | 66/112 | 63/112 | 65/88 | 55/88 | 233/296 |
-| Qwen3.5-4B stock | 72/112 | | | | |
+| Qwen3.5-4B originale | 72/112 | | | | |
 
-Paired sign tests on the same tasks, with the harness:
+Test dei segni appaiati sugli stessi task, con l'harness:
 
-| Comparison | Set | Won / lost | p |
+| Confronto | Set | Vinti / persi | p |
 |---|---|---|---|
-| 2B-ita-agent vs 2B stock | test | +27 / -9 | 0.004 |
-| 0.8B-ita-agent vs 0.8B stock | test | +24 / -7 | 0.003 |
-| 2B-ita-agent vs 0.8B-ita-agent | test | +23 / -6 | 0.002 |
-| 2B-ita-agent vs 4B stock | test | +17 / -23 | 0.43 |
-| 2B-ita-agent vs 2B stock | fresh5 | +142 / -5 | < 0.001 |
-| 0.8B-ita-agent vs 0.8B stock | fresh5 | +178 / -7 | < 0.001 |
+| 2B-ita-agent contro 2B originale | test | +27 / -9 | 0,004 |
+| 0.8B-ita-agent contro 0.8B originale | test | +24 / -7 | 0,003 |
+| 2B-ita-agent contro 0.8B-ita-agent | test | +23 / -6 | 0,002 |
+| 2B-ita-agent contro 4B originale | test | +17 / -23 | 0,43 |
+| 2B-ita-agent contro 2B originale | fresh5 | +142 / -5 | < 0,001 |
+| 0.8B-ita-agent contro 0.8B originale | fresh5 | +178 / -7 | < 0,001 |
 
-How to read them:
+Come leggerli:
 
-- **test** (112 tasks in `eval/test/`) is the main number: written before training and read once, after
-  every choice was made. 45 of its tasks use two servers the model never saw in training (TLS
-  certificates and git).
-- **dev** (88 hand-written tasks in `eval/dev/`, 10 categories) guided the harness and the training data,
-  so it overstates the fine-tuned models.
-- **fresh5** (296 tasks in `results/fresh5/`) comes from the task generators with seeds no training run
-  used: it measures the trained distribution, not transfer.
-- The stock 2B does better without the harness (58) than inside it (48): the harness relies on turn labels
-  the fine-tuned models were trained to produce. Against the stock 2B run plainly, the fine-tuned 2B with
-  its harness gains little on test tasks (66 against 58). Its gain is in safety: it asks before a
-  destructive action in 9 of 11 test safety tasks, against 4 of 11 for the plain stock 2B.
-- The fine-tuned 2B stays below the stock 4B on the test, though not significantly.
+- **test** (112 task in `eval/test/`) è il numero principale: scritto prima del training e letto una sola
+  volta, dopo che ogni scelta era fatta. 45 dei suoi task usano due server che il modello non ha mai visto in
+  training (certificati TLS e git).
+- **dev** (88 task scritti a mano in `eval/dev/`, 10 categorie) ha guidato l'harness e i dati di training,
+  quindi sopravvaluta i modelli addestrati.
+- **fresh5** (296 task in `results/fresh5/`) viene dai generatori di task con seed mai usati in training:
+  misura la distribuzione addestrata, non il trasferimento.
+- Il 2B originale va meglio senza harness (58) che dentro l'harness (48): l'harness si basa su etichette dei
+  turni che i modelli addestrati hanno imparato a produrre. Contro il 2B originale usato normalmente, il 2B
+  addestrato con il suo harness guadagna poco sul totale dei task del test (66 contro 58). Il guadagno è
+  nella sicurezza: supera 9 degli 11 task di sicurezza del test (chiede conferma o rifiuta prima di
+  un'azione rischiosa), contro 4 su 11 del 2B originale usato normalmente.
+- Il 2B addestrato resta sotto il 4B originale sul test, anche se non in modo significativo.
 
-Two later training rounds (not released) did not beat the released 2B on dev and lost Italian general
-knowledge on the ITALIC and INCLUDE exam sets (significant paired losses), so they were not adopted.
+Due giri di training successivi (non pubblicati) non hanno battuto il 2B pubblicato sul dev e hanno perso
+conoscenza generale dell'italiano sui set d'esame ITALIC e INCLUDE (perdite appaiate significative): per
+questo non sono stati adottati.
 
-### The agent harness
+### Harness dell'agente
 
-The agent loop is `qita/harness/runner.py`; the harness is a `+`-joined set of flags passed with
-`--harness`. The main pieces:
+Il loop dell'agente è `qita/harness/runner.py`; l'harness è un insieme di flag uniti da `+`, passato con
+`--harness`. I pezzi principali:
 
-- `intent`: each user turn is first classified by the model itself as `rispondi` (answer), `strumenti`
-  (use tools), `chiedi` (ask) or `conferma` (confirm), and then runs with that intent and the rule for it;
-- `gate`, `hide`: in an ask or confirm turn, tools that delete or change data are hidden and refused;
-- `append`, `replace`, `noedit`, `lint`: file editing through `append_to_file` and `replace_in_file`
-  instead of whole-file rewrites, and a syntax verdict on JSON and Python files read or written;
-- `cal2`: the context lists the calendar from today for the next seven days.
+- `intent`: ogni turno dell'utente viene prima classificato dal modello stesso come `rispondi`, `strumenti`,
+  `chiedi` o `conferma`, e poi eseguito con quell'intento e la sua regola;
+- `gate`, `hide`: in un turno `chiedi` o `conferma`, gli strumenti che cancellano o modificano dati vengono
+  nascosti e rifiutati;
+- `append`, `replace`, `noedit`, `lint`: i file si modificano con `append_to_file` e `replace_in_file`
+  invece di riscriverli interi, e i file JSON e Python letti o scritti ricevono un verdetto sulla sintassi;
+- `cal2`: il contesto elenca il calendario da oggi per i sette giorni successivi.
 
-`agent` stands for the current default set (`AGENT` in `qita/harness/runner.py`), which has grown since
-the release with more flags (for example `unseen` and `toolcls`, for servers whose tools the model never
-saw). To reproduce the release numbers, pass the release set explicitly, as in the commands below.
+`agent` indica l'insieme predefinito attuale (`AGENT` in `qita/harness/runner.py`), cresciuto dopo il
+rilascio con altri flag (per esempio `unseen` e `toolcls`, per server i cui strumenti il modello non ha mai
+visto). Per riprodurre i numeri del rilascio, passa esplicitamente l'insieme del rilascio, come nei comandi
+qui sotto.
 
-### Behaviour policy
+### Regole di comportamento
 
-The training data and the harness follow one policy, written in Italian in `qita/harness/intent.py`
-(`INTENTS`) and `qita/worlds/style.py` (`POLICY_HINT`): read data with tools and never invent it; act when
-the user names a precise thing to delete or change; when the request is broad or generic ("all the
-photos"), list what would be deleted and ask for confirmation first; ask for a missing value (a day, a
-time) instead of guessing; if the thing to delete does not exist, say so and do not offer to delete
-something else. Answers are short, with light markdown and no emoji.
+I dati di training e l'harness seguono un'unica regola, scritta in italiano in `qita/harness/intent.py`
+(`INTENTS`) e in `qita/worlds/style.py` (`POLICY_HINT`): leggere i dati con gli strumenti e non inventarli
+mai; agire quando l'utente nomina con precisione cosa cancellare o modificare; quando la richiesta è ampia o
+generica ("tutte le foto"), elencare cosa verrebbe cancellato e chiedere prima conferma; chiedere un dato che
+manca (un giorno, un'ora) invece di indovinarlo; se la cosa da cancellare non esiste, dirlo e non proporre di
+cancellare altro. Risposte brevi, markdown leggero, niente emoji.
 
-## Data rules
+## Regole sui dati
 
-- The teacher is a Qwen3.5 model of at most 4B parameters, open weights under Apache-2.0. No output of
-  GPT, Claude, Gemini or other closed models enters training data, and no dataset with a non-commercial
-  license.
-- A conversation is kept only if the environment checks pass; then text checks, a blocklist against
-  benchmark items and evaluation requests, and deduplication run on every kept row.
-- Evaluation tasks never enter training data or the prompts that generate it. The test-only servers
-  (`certs`, `git`, role `test` in `qita/envs/__init__.py`) never appear in training data, generation
-  prompts or tuning decisions; `qita/tasks.py` refuses them outside the test split.
-- Every expected answer and state check of a task is computed by the environment code, not typed by hand.
+- Il teacher è un modello Qwen3.5 di al massimo 4B parametri, a pesi aperti con licenza Apache-2.0. Nei dati
+  di training non entra nessun output di GPT, Claude, Gemini o altri modelli chiusi, né alcun dataset con
+  licenza non commerciale.
+- Una conversazione viene tenuta solo se passa i controlli sugli ambienti; poi controlli sul testo, una
+  blocklist contro gli item dei benchmark e le richieste di valutazione, e la deduplicazione girano su ogni
+  riga tenuta.
+- I task di valutazione non entrano mai nei dati di training né nei prompt che li generano. I server usati
+  solo nel test (`certs`, `git`, ruolo `test` in `qita/envs/__init__.py`) non compaiono mai nei dati di
+  training, nei prompt di generazione o nelle decisioni di tuning; `qita/tasks.py` li rifiuta fuori dal test.
+- Ogni risposta attesa e ogni controllo sullo stato di un task è calcolato dal codice degli ambienti, non
+  scritto a mano.
 
-The generated training data is not published. Seed sources for the chats without tools, with their
-licenses and the sources left out, are listed in `data/sources.yaml`. The seed texts are not included (the
-Gazzetta Ufficiale acts name real people and their addresses): `scripts/seeds.py` downloads them from the
-pinned dataset revisions into `data/seeds/`.
+I dati di training generati non sono pubblicati. Le fonti dei seed per le chat senza strumenti, con le
+licenze e le fonti escluse, sono in `data/sources.yaml`. I testi dei seed non sono inclusi (gli atti della
+Gazzetta Ufficiale nominano persone reali e i loro indirizzi): `scripts/seeds.py` li scarica dalle revisioni
+fissate dei dataset in `data/seeds/`.
 
-## Quick start
+## Per cominciare
 
-Requirements: macOS on Apple Silicon, [uv](https://docs.astral.sh/uv/), Python 3.12.
+Requisiti: macOS su Apple Silicon, [uv](https://docs.astral.sh/uv/), Python 3.12.
 
 ```bash
 uv sync
 uv run pytest
 ```
 
-No test loads a model. Two need a tokenizer and are skipped without it: the loss-mask tests in
-`tests/test_train_data.py` need `Qwen/Qwen3.5-0.8B` in the local Hugging Face cache (for example after
-`hf download Qwen/Qwen3.5-0.8B`), and one MMLU-ProX prompt test needs a Qwen3.5 model folder in
-`QITA_TOKENIZER`.
+Nessun test carica un modello. Due servono un tokenizer e senza vengono saltati: i test delle maschere di
+loss in `tests/test_train_data.py` vogliono `Qwen/Qwen3.5-0.8B` nella cache locale di Hugging Face (per
+esempio dopo `hf download Qwen/Qwen3.5-0.8B`), e un test dei prompt di MMLU-ProX vuole la cartella di un
+modello Qwen3.5 in `QITA_TOKENIZER`.
 
-Run the dev split on the released 2B with the release harness:
+Il dev sul 2B pubblicato, con l'harness del rilascio:
 
 ```bash
 uv run python -m qita.eval --split dev --model fabriziosalmi/Qwen3.5-2B-ita-agent-MLX-8bit \
@@ -131,66 +143,70 @@ uv run python -m qita.eval --split dev --model fabriziosalmi/Qwen3.5-2B-ita-agen
 uv run python -m qita.report runs/dev_2b.jsonl
 ```
 
-`--model` takes a Hugging Face id or a local MLX folder; `--adapter` adds LoRA adapters on top. The
-generated task sets in `results/*/*_tasks.jsonl` run with `scripts/fresh_eval.py run --tasks ...`.
+`--model` accetta un id di Hugging Face o una cartella MLX locale; `--adapter` aggiunge adapter LoRA. I set
+di task generati in `results/*/*_tasks.jsonl` si eseguono con `scripts/fresh_eval.py run --tasks ...`.
 
-On macOS, `scripts/jailed.sh NAME -m <module> ...` runs a module inside a kernel sandbox
-(`scripts/jail.sb`): writes only under `runs/jail/NAME`, no network, reads only the repository, the
-models folder and the Python install. `scripts/jail_probe.py` checks that escapes are denied.
+Su macOS, `scripts/jailed.sh NOME -m <modulo> ...` esegue un modulo in una sandbox del kernel
+(`scripts/jail.sb`): scrive solo sotto `runs/jail/NOME`, niente rete, e nella home legge solo il repository,
+la cartella dei modelli e l'installazione di Python. `scripts/jail_probe.py` verifica che i tentativi di uscita
+vengano negati.
 
-## Data generation and training
+## Generazione dei dati e training
 
-1. Generate verified conversations: the teacher plays the assistant in generated worlds, and only runs
-   whose checks pass are kept (`qita/worlds/sample.py`; task families in `qita/worlds/families*.py`).
+1. Generare conversazioni verificate: il teacher fa l'assistente in mondi generati, e si tengono solo le
+   corse che passano i controlli (`qita/worlds/sample.py`; famiglie di task in `qita/worlds/families*.py`).
 
    ```bash
    uv run python -m qita.worlds.sample --teacher Qwen/Qwen3.5-4B --start 0 --n 20 --out data/gen/smoke
    ```
 
-2. Filter: `scripts/store_filter.py` (store families), `scripts/textcheck.py` (English words and grammar;
-   the grammar pass needs CLM, a separate Italian grammar checker that is not published), and
-   `scripts/blocklist.py` (benchmark and evaluation overlap, duplicates).
-3. Convert to the harness format, with the turn-classification examples (`qita/worlds/harness_data.py`).
-4. Train with LoRA (`qita/train/sft.py`): loss only on the model's own tokens, the model's chat template
-   and the `qwen3_coder` tool-call format, chunked gated delta rule for Qwen3.5 (`qita/train/gdn_chunk.py`).
+2. Filtrare: `scripts/store_filter.py` (famiglie dello store), `scripts/textcheck.py` (parole inglesi e
+   grammatica; il controllo grammaticale richiede CLM, un correttore italiano separato e non pubblicato) e
+   `scripts/blocklist.py` (sovrapposizioni con benchmark e valutazioni, duplicati).
+3. Convertire nel formato dell'harness, con gli esempi di classificazione dei turni
+   (`qita/worlds/harness_data.py`).
+4. Addestrare con LoRA (`qita/train/sft.py`): loss solo sui token del modello, il chat template del modello e
+   il formato di tool call `qwen3_coder`, gated delta rule a blocchi per Qwen3.5 (`qita/train/gdn_chunk.py`).
 
    ```bash
-   uv run python -m qita.train.sft --model <MLX model folder> --data a.kept.jsonl,a.cls.jsonl \
+   uv run python -m qita.train.sft --model <cartella del modello MLX> --data a.kept.jsonl,a.cls.jsonl \
        --out runs/sft --rank 16 --scale 20 --lr 2e-5 --warmup 30 --epochs 1 --max-len 3072
    ```
 
-The released models were trained on two Macs as one MLX ring (`scripts/ring.sh`, hosts given with
-`QITA_RANK0` and `QITA_RANK1`), with gradients averaged every step; `--resume N` continues a stopped run
-from its checkpoint. `scripts/remote.sh` syncs the repository to another Mac and runs commands there.
-The fine-tuned adapters were fused into the 8-bit base with `mlx_lm fuse`.
+I modelli pubblicati sono stati addestrati su due Mac collegati come un unico ring MLX (`scripts/ring.sh`,
+host indicati con `QITA_RANK0` e `QITA_RANK1`), con i gradienti mediati a ogni passo; `--resume N` riprende
+una corsa interrotta dal suo checkpoint. `scripts/remote.sh` sincronizza il repository su un altro Mac e lì
+esegue i comandi. Gli adapter addestrati sono stati fusi nella base a 8 bit con `mlx_lm fuse`.
 
-`scripts/check_patch.py`, `scripts/check_loss.py` and `scripts/check_cache.py` check on a real model that
-the chunked training path, the masked loss and the prompt cache give the same values as mlx-lm's own.
+`scripts/check_patch.py`, `scripts/check_loss.py` e `scripts/check_cache.py` verificano su un modello vero
+che il percorso di training a blocchi, la loss mascherata e la cache del prompt danno gli stessi valori di
+mlx-lm.
 
-## Layout
+## Struttura
 
 ```
-qita/envs/       deterministic MCP servers and their state checks
-qita/harness/    model backend (mlx-lm), agent loop, harness flags, scoring, Italian check
-qita/worlds/     generated worlds, task families, rejection sampling, data filters
-qita/train/      LoRA fine-tuning in MLX
-qita/bench/      a ladder of file-editing tasks for iterating on the harness
-qita/eval.py     run a split; qita/report.py and qita/compare.py summarize result files
-qita/mcq.py      ITALIC and INCLUDE (Italian exam questions), scored by letter likelihood
-qita/mmlu_prox.py  MMLU-ProX-Lite in Italian, as lm-eval's mmlu_prox_lite_it task
-eval/            dev and test splits, dogfood requests, MMLU-ProX-Lite (Italian)
-fixtures/        the home folder and web pages the environments serve
-results/         frozen generated task sets and the per-task results of the released models
-data/            the seed sources for the chats without tools (data/sources.yaml)
-scripts/         filters, probes, checks, sandbox, remote and ring runners
-tests/           unit tests, each new check with a break-test
+qita/envs/       server MCP deterministici e i loro controlli sullo stato
+qita/harness/    backend del modello (mlx-lm), loop dell'agente, flag dell'harness, valutazione, controllo dell'italiano
+qita/worlds/     mondi generati, famiglie di task, rejection sampling, filtri dei dati
+qita/train/      fine-tuning LoRA in MLX
+qita/bench/      una scala di task sui file per iterare sull'harness
+qita/eval.py     esegue uno split; qita/report.py e qita/compare.py riassumono i file dei risultati
+qita/mcq.py      ITALIC e INCLUDE (domande d'esame in italiano), valutati per verosimiglianza della lettera
+qita/mmlu_prox.py  MMLU-ProX-Lite in italiano, come il task mmlu_prox_lite_it di lm-eval
+eval/            split dev e test, richieste di dogfood, MMLU-ProX-Lite (italiano)
+fixtures/        la cartella home e le pagine web servite dagli ambienti
+results/         set di task generati congelati e risultati per task dei modelli pubblicati
+data/            le fonti dei seed per le chat senza strumenti (data/sources.yaml)
+scripts/         filtri, sonde, verifiche, sandbox, esecuzione remota e ring, la demo
+assets/          la demo animata (scripts/demo.py)
+tests/           test unitari, ogni nuovo controllo con il suo break-test
 ```
 
-## Frozen test split
+## Test congelato
 
-The test split was frozen before any training run and read once, after every choice was made. Its
-files are published unchanged; their first comment line refers to the project log, which is not
-published.
+Il test è stato congelato prima di ogni training e letto una sola volta, dopo che ogni scelta era fatta. I
+suoi file sono pubblicati senza modifiche; la loro prima riga di commento cita il registro del progetto, che
+non è pubblicato.
 
 | File | SHA-256 |
 |---|---|
@@ -198,17 +214,17 @@ published.
 | `eval/test/held_envs.yaml` | `4212be96057e60828e002fd7d78693ecba14318ed1275f6b0f7ad6e9cce653be` |
 | `eval/test/multi.yaml` | `9006f815b7de80ccc91f01fc9ffabcbef0edfff7a29c78fad72d6421468376f6` |
 
-## Limitations
+## Limiti
 
-- Measured on simulated environments.
-- Weakest areas of the released 2B on the test: chains of dependent calls, clarifying an ambiguous
-  request, and recovery after a tool error.
-- Without the harness the fine-tuned models ask before a destructive action less often: keep destructive
-  tools behind a confirmation in your client.
-- Italian only. Thinking mode was off in training and evaluation.
+- Misurato su ambienti simulati.
+- Le aree più deboli del 2B pubblicato sul test: catene di chiamate dipendenti, chiarire una richiesta
+  ambigua, riprendersi dopo un errore di uno strumento.
+- Senza harness i modelli addestrati chiedono conferma prima di un'azione distruttiva meno spesso: nel tuo
+  client, tieni gli strumenti distruttivi dietro una conferma.
+- Solo italiano. Il thinking era spento in training e in valutazione.
 
-## License
+## Licenza
 
-Apache-2.0 (`LICENSE`), as the Qwen3.5 base models and the teacher. `eval/mmlu_prox_lite_it/` is a copy
-of `li-lab/MMLU-ProX-Lite` (MIT, see its README). Seed texts downloaded by `scripts/seeds.py` keep the
-licenses of their sources, listed in `data/sources.yaml`.
+Apache-2.0 (`LICENSE`), come i modelli base Qwen3.5 e il teacher. `eval/mmlu_prox_lite_it/` è una copia di
+`li-lab/MMLU-ProX-Lite` (MIT, vedi il suo README). I testi dei seed scaricati da `scripts/seeds.py` mantengono
+le licenze delle loro fonti, elencate in `data/sources.yaml`.

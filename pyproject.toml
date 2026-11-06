@@ -1,7 +1,7 @@
 [project]
 name = "qwen3.5-ita-agent-mlx"
 version = "1.0.0"
-description = "Italian MCP tool-use agents fine-tuned from Qwen3.5 in MLX: environments, harness, evaluation and training."
+description = "Agenti italiani per strumenti MCP addestrati da Qwen3.5 in MLX: ambienti, harness, valutazione e training."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
