@@ -1,0 +1,46 @@
+# Dogfooding, round 2: six new requests (round 1 is rerun next to them). Written by Claude, harness
+# decisions only, never training data (the data rules of README.md). No checks: judged with facts from the files.
+
+- id: dog2-lavorativi-fine-anno
+  category: single
+  envs: [itcalc, calendar]
+  turns:
+    - "Quanti giorni lavorativi ci sono da oggi a fine dicembre?"
+  checks: {}
+
+- id: dog2-porta-config
+  category: single
+  envs: [files]
+  turns:
+    - "Nel file di configurazione dell'app cambia la porta del server in 8081."
+  checks: {}
+
+- id: dog2-riunione-sito
+  category: multi
+  envs: [calendar, notes]
+  turns:
+    - "Che impegni ho la settimana prossima?"
+    - "La riunione del sito spostala di un'ora più tardi."
+    - "E segnati di preparare le slide per quella riunione."
+  checks: {}
+
+- id: dog2-backup-ultimo
+  category: summarize
+  envs: [files]
+  turns:
+    - "Il backup di stanotte è andato bene? E quello prima?"
+  checks: {}
+
+- id: dog2-pesto-spesa
+  category: chain
+  envs: [web, files]
+  turns:
+    - "Trova la ricetta del pesto genovese e aggiungi alla mia lista della spesa gli ingredienti che mi mancano."
+  checks: {}
+
+- id: dog2-disdetta-palestra
+  category: no_tool
+  envs: [calendar]
+  turns:
+    - "Scrivimi un messaggio breve e gentile per disdire l'abbonamento in palestra da dicembre."
+  checks: {}

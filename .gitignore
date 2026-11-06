@@ -1,0 +1,8 @@
+.venv/
+.venv-*/
+__pycache__/
+.DS_Store
+runs/
+.pytest_cache/
+data/gen/
+data/seeds/

@@ -1,0 +1,46 @@
+# Dogfooding, round 3: six new requests on fixture files no earlier round used. Written by Claude,
+# harness decisions only, never training data (the data rules of README.md). No checks: judged with facts from the
+# files, written down before the run.
+
+- id: dog3-meteo-mercatino
+  category: chain
+  envs: [calendar, web]
+  turns:
+    - "Sabato c'è il mercatino: che tempo fa? Se piove, spostalo a domenica alla stessa ora."
+  checks: {}
+
+- id: dog3-disdetta-affitto
+  category: summarize
+  envs: [files, itcalc]
+  turns:
+    - "Se voglio lasciare casa alla prima scadenza del contratto d'affitto, entro quando devo mandare la disdetta?"
+  checks: {}
+
+- id: dog3-fattura-controllo
+  category: chain
+  envs: [files, itcalc]
+  turns:
+    - "Controlla la fattura di ottobre: l'IVA è calcolata giusta? E l'IBAN è valido?"
+  checks: {}
+
+- id: dog3-azioni-riunione
+  category: multi
+  envs: [files, notes]
+  turns:
+    - "Dagli appunti della riunione di ieri: cosa deve fare Marco?"
+    - "Segnami in una nota tutte le scadenze delle azioni."
+  checks: {}
+
+- id: dog3-anagrafe-cie
+  category: chain
+  envs: [web, calendar]
+  turns:
+    - "Devo rifare la carta d'identità: cosa devo portare e quanto costa? Mettimi in calendario l'anagrafe giovedì alle 14."
+  checks: {}
+
+- id: dog3-banca-oggi
+  category: single
+  envs: [calendar]
+  turns:
+    - "Oggi alle 15:30 riesco a passare in banca?"
+  checks: {}

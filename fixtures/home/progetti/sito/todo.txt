@@ -1,0 +1,5 @@
+- [x] scegliere il tema
+- [ ] testi della home
+- [ ] pagina contatti
+- [ ] foto della sede
+- [x] registrare il dominio

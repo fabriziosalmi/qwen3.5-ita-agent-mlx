@@ -1,0 +1,24 @@
+[project]
+name = "qwen3.5-ita-agent-mlx"
+version = "1.0.0"
+description = "Italian MCP tool-use agents fine-tuned from Qwen3.5 in MLX: environments, harness, evaluation and training."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=2.3.0",
+    "mlx-lm==0.32.2",  # qita/train/gdn_chunk.py patches a function of this version
+    "numpy>=2.5.4",
+    "pyyaml>=6.0.3",
+    "transformers>=5.20.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

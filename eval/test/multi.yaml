@@ -1,0 +1,202 @@
+# Test split, part 3: multi-turn (3 to 6 turns). Frozen once its SHA-256 is in docs/LEDGER.md.
+# Never training data, never a tuning signal. Fixture world, today Wednesday 2026-11-04 10:00.
+# Oracles: 244 EUR VAT included at 22% -> 200,00 + 44,00; at 10% -> 221,82 + 22,18;
+# rent 780 x 12 = 9.360; 2026-11-04 -> 2026-11-20 is 16 days, 13 working days (12 from tomorrow);
+# 5 working days after 2026-11-20 is Friday 2026-11-27; certificate renewal -> 2027-02-02.
+
+- id: t-mt-agenda-weekend
+  category: multi
+  envs: [calendar]
+  turns:
+    - {user: "Cosa ho sabato?", checks: {calls: [{tool: list_events, args: {start_date: {date: "2026-11-07"}}}], answer: {contains: [mercatino]}}}
+    - {user: "E domenica?", checks: {calls: [{tool: list_events, args: {start_date: {date: "2026-11-08"}}}], answer: {any: [["nessun", "niente", "libero", "non hai", "nulla"]]}}}
+    - {user: "Allora domenica mettimi una passeggiata alle 10, per due ore.", checks: {calls: [{tool: create_event, args: {start: {date: "2026-11-08T10:00"}}}]}}
+  checks:
+    state: [{kind: event_exists, title_contains: passeggiata, start: "2026-11-08T10:00", end: "2026-11-08T12:00"}, {kind: event_count, n: 7}]
+
+- id: t-mt-cert-flow
+  category: multi
+  envs: [certs]
+  turns:
+    - {user: "Quali certificati scadono entro un mese?", checks: {calls: [{tool: list_certificates}], answer: {contains: [ilfaro.example, api.studio-levante.example]}}}
+    - {user: "Rinnova quello che scade prima.", checks: {calls: [{tool: renew_certificate, args: {domain: ilfaro.example}}], no_call: [{tool: renew_certificate, args: {domain: api.studio-levante.example}}]}}
+    - {user: "All'altro attiva il rinnovo automatico.", checks: {calls: [{tool: set_auto_renew, args: {domain: api.studio-levante.example, enabled: true}}]}}
+  checks:
+    state:
+      - {kind: cert_expires, domain: ilfaro.example, date: "2027-02-02"}
+      - {kind: cert_expires, domain: api.studio-levante.example, date: "2026-11-25"}
+      - {kind: cert_auto_renew, domain: api.studio-levante.example, value: true}
+
+- id: t-mt-git-commit-home
+  category: multi
+  envs: [git]
+  turns:
+    - {user: "Che modifiche ci sono nel repo ~/progetti/sito?", checks: {calls_any: [[{tool: git_status}, {tool: git_diff_unstaged}]], answer: {contains: [home.md]}}}
+    - {user: "Fai il commit solo della home, messaggio «Aggiorna la home».", checks: {calls: [{tool: git_commit, args: {message: {contains: aggiorna la home}}}]}}
+    - {user: "Qual è l'ultimo commit adesso?", checks: {answer: {contains: [aggiorna la home]}}}
+  checks:
+    state: [{kind: git_committed, message_contains: [aggiorna la home], files: [contenuti/home.md], exclude_files: [immagini/sede-3.jpg]}]
+
+- id: t-mt-palestra-due-volte
+  category: multi
+  envs: [calendar]
+  turns:
+    - {user: "Sposta la palestra di giovedì alle 19.", checks: {calls: [{tool: update_event, args: {event_id: ev2}}], no_call: [create_event]}}
+    - {user: "Anzi no, alle 20.", checks: {calls: [{tool: update_event, args: {event_id: ev2}}], no_call: [create_event]}}
+    - {user: "Perfetto.", checks: {no_tools: true}}
+  checks:
+    state: [{kind: event_exists, title_contains: palestra, start: "2026-11-05T20:00", end: "2026-11-05T21:00"}, {kind: event_count, n: 6}]
+
+- id: t-mt-foto-ultima
+  category: multi
+  envs: [files]
+  turns:
+    - {user: "Cosa c'è nella cartella foto?", checks: {calls: [{tool: list_directory, args: {path: {path: /home/utente/foto}}}]}}
+    - {user: "Sposta l'ultimo file dell'elenco nella cartella documenti.", checks: {calls: [{tool: move_file, args: {source: {path: /home/utente/foto/vacanze-cinque-terre-05.jpg}}}]}}
+    - {user: "Quanti file restano in foto?", checks: {answer: {any: [["5", "cinque"]]}}}
+  checks:
+    state: [{kind: file_exists, path: documenti/vacanze-cinque-terre-05.jpg}, {kind: file_absent, path: foto/vacanze-cinque-terre-05.jpg}]
+
+- id: t-mt-meteo-ombrello
+  category: multi
+  envs: [web, notes]
+  turns:
+    - {user: "Che tempo fa giovedì a Genova?", checks: {answer: {any: [["pioggia", "piove"]]}}}
+    - {user: "E sabato?", checks: {answer: {any: [["sereno", "sole"]]}}}
+    - {user: "Allora segnati di portare l'ombrello giovedì.", checks: {calls: [{tool: aggiungi_nota, args: {testo: {contains: ombrell}}}]}}
+  checks:
+    state: [{kind: note_exists, text: [ombrell]}]
+
+- id: t-mt-nota-scadenza
+  category: multi
+  envs: [notes]
+  turns:
+    - {user: "Che note ho sulle scadenze?", checks: {answer: {contains: [assicurazione]}}}
+    - {user: "Correggila: la scadenza è il 20 novembre.", checks: {calls: [{tool: modifica_nota, args: {id: 2}}], no_call: [aggiungi_nota]}}
+    - {user: "Grazie.", checks: {no_tools: true}}
+  checks:
+    state: [{kind: note_exists, text: [assicurazione, "20 novembre"]}, {kind: note_count, n: 6}]
+
+- id: t-mt-chat-cert
+  category: multi
+  envs: [certs]
+  turns:
+    - {user: "Buongiorno!", checks: {no_tools: true}}
+    - {user: "Il certificato del blog, blog.ilfaro.example, quando scade?", checks: {answer: {any: [["1 marzo", "1° marzo", "2027-03-01", "01/03"]]}}}
+    - {user: "Grazie, buona giornata.", checks: {no_tools: true}}
+
+- id: t-mt-scorporo
+  category: multi
+  envs: [itcalc]
+  turns:
+    - {user: "Ho pagato 244 euro IVA inclusa al 22%: qual era l'imponibile?", checks: {calls: [{tool: calcola_iva, args: {importo: {num: 244}, scorporo: true}}], answer: {any: [["200,00", "200 euro", "200€", "200 €"]]}}}
+    - {user: "E l'IVA quindi?", checks: {answer: {any: [["44,00", "44 euro", "44€", "44 €"]]}}}
+    - {user: "E se l'aliquota fosse il 10%?", checks: {calls: [{tool: calcola_iva, args: {importo: {num: 244}, aliquota: {num: 10}, scorporo: true}}], answer: {contains: ["221,82"]}}}
+
+- id: t-mt-foto-vacanze
+  category: multi
+  envs: [files]
+  turns:
+    - {user: "Cancella le foto delle vacanze.", checks: {asks: true, no_call: [delete_file], answer: {any: [["davvero", "sicur", "conferm", "vuoi", "procedo"]]}}}
+    - {user: "Sì, ma tieni la prima.", checks: {calls: [{tool: delete_file}], no_call: [{tool: delete_file, args: {path: {path: /home/utente/foto/vacanze-cinque-terre-01.jpg}}}]}}
+  checks:
+    state:
+      - {kind: file_exists, path: foto/vacanze-cinque-terre-01.jpg}
+      - {kind: file_absent, path: foto/vacanze-cinque-terre-02.jpg}
+      - {kind: file_absent, path: foto/vacanze-cinque-terre-05.jpg}
+      - {kind: file_exists, path: foto/carta-identita-scansione.jpg}
+
+- id: t-mt-contratto-anno
+  category: multi
+  envs: [files]
+  turns:
+    - {user: "Chi è il locatore nel mio contratto d'affitto?", checks: {answer: {contains: [rossi]}}}
+    - {user: "E quanto pago al mese?", checks: {answer: {contains: ["780"]}}}
+    - {user: "Quindi in un anno quanto fa?", checks: {answer: {any: [["9.360", "9360"]]}}}
+
+- id: t-mt-csv-righe
+  category: multi
+  envs: [shell]
+  turns:
+    - {user: "Che file ci sono in scaricati?", checks: {answer: {contains: [vendite-q3.csv]}}}
+    - {user: "Quante righe ha?", checks: {answer: {any: [["7", "sette", "6 righe di dati", "sei righe di dati"]]}}}
+    - {user: "Mostrami solo quelle di settembre.", checks: {calls: [{tool: esegui_comando, args: {comando: {contains: settembre}}}], answer: {contains: ["1830", "3150"]}}}
+
+- id: t-mt-git-autori
+  category: multi
+  envs: [git]
+  turns:
+    - {user: "Chi ha fatto più commit nel repo ~/progetti/sito?", checks: {calls: [{tool: git_log}], answer: {contains: [marco]}}}
+    - {user: "Qual è il suo ultimo commit?", checks: {answer: {contains: [iscrizion]}}}
+    - {user: "E quello di Sara?", checks: {answer: {contains: [foto della sede]}}}
+
+- id: t-mt-medico
+  category: multi
+  envs: [calendar]
+  turns:
+    - {user: "Mettimi un appuntamento dal medico.", checks: {asks: true, no_call: [create_event], answer: {any: [["quando", "giorno", "data", "ora", "orario"]]}}}
+    - {user: "Lunedì 9 alle 8:30, mezz'ora.", checks: {calls: [{tool: create_event, args: {start: {date: "2026-11-09T08:30"}}}]}}
+    - {user: "Che altro ho lunedì?", checks: {answer: {any: [["nient", "nessun", "solo", "nulla", "non hai altri", "non hai altro"]]}}}
+  checks:
+    state: [{kind: event_exists, title_contains: medic, start: "2026-11-09T08:30", end: "2026-11-09T09:00"}]
+
+- id: t-mt-anagrafe
+  category: multi
+  envs: [web, calendar]
+  turns:
+    - {user: "Che orari ha l'anagrafe di Genova?", checks: {answer: {contains: ["8:30", "12:30"]}}}
+    - {user: "E quanto costa la carta d'identità elettronica?", checks: {answer: {contains: ["22,21"]}}}
+    - {user: "Mettimi in calendario giovedì alle 14 per andarci, due ore.", checks: {calls: [{tool: create_event, args: {start: {date: "2026-11-05T14:00"}}}]}}
+  checks:
+    state: [{kind: event_exists, start: "2026-11-05T14:00", end: "2026-11-05T16:00"}]
+
+- id: t-mt-lungo-sei
+  category: multi
+  envs: [calendar, notes]
+  turns:
+    - {user: "Ciao!", checks: {no_tools: true}}
+    - {user: "Cosa ho oggi?", checks: {calls: [{tool: list_events, args: {start_date: {date: "2026-11-04"}}}], answer: {contains: [dentista]}}}
+    - {user: "Spostalo a domani alla stessa ora.", checks: {calls: [{tool: update_event, args: {event_id: ev1}}], no_call: [create_event, delete_event]}}
+    - {user: "Segnati di chiamare lo studio per avvisarli.", checks: {calls: [{tool: aggiungi_nota, args: {testo: {contains: studio}}}]}}
+    - {user: "Quante note ho adesso?", checks: {answer: {any: [["7", "sette"]]}}}
+    - {user: "Grazie, ciao.", checks: {no_tools: true}}
+  checks:
+    state: [{kind: event_exists, title_contains: dentista, start: "2026-11-05T15:00", end: "2026-11-05T16:00"}, {kind: note_count, n: 7}]
+
+- id: t-mt-cert-nuovo
+  category: multi
+  envs: [certs]
+  turns:
+    - {user: "Emetti un certificato nuovo.", checks: {asks: true, no_call: [issue_certificate], answer: {any: [["dominio", "quale", "per quale", "per cosa"]]}}}
+    - {user: "Per eventi.ilfaro.example.", checks: {calls: [{tool: issue_certificate, args: {domain: eventi.ilfaro.example}}]}}
+    - {user: "Quando scade?", checks: {answer: {any: [["2 febbraio", "2027-02-02", "02/02/2027"]]}}}
+  checks:
+    state: [{kind: cert_exists, domain: eventi.ilfaro.example}]
+
+- id: t-mt-git-poi-basta
+  category: multi
+  envs: [git]
+  turns:
+    - {user: "Nel repo ~/progetti/sito aggiungi immagini/sede-3.jpg e fai il commit «Nuova foto della sede».", checks: {calls: [{tool: git_commit}]}}
+    - {user: "Cosa resta da committare?", checks: {answer: {contains: [home.md]}}}
+    - {user: "Lascia stare, va bene così.", checks: {no_call: [git_add, git_commit]}}
+  checks:
+    state: [{kind: git_committed, message_contains: [nuova foto], files: [immagini/sede-3.jpg], exclude_files: [contenuti/home.md]}, {kind: git_commit_count, n: 1}]
+
+- id: t-mt-note-casa
+  category: multi
+  envs: [notes]
+  turns:
+    - {user: "Che note ho con l'etichetta casa?", checks: {answer: {contains: [idraulico, "4471-882"]}}}
+    - {user: "Elimina quella dell'idraulico.", checks: {calls: [{tool: elimina_nota, args: {id: 1}}], no_call: [{tool: elimina_nota, args: {id: 4}}]}}
+    - {user: "E l'altra cosa diceva?", checks: {answer: {contains: ["4471-882"]}}}
+  checks:
+    state: [{kind: note_absent, id: 1}, {kind: note_count, n: 5}]
+
+- id: t-mt-giorni
+  category: multi
+  envs: [itcalc]
+  turns:
+    - {user: "Quanti giorni lavorativi mancano al 20 novembre?", checks: {calls: [{tool: giorni_lavorativi, args: {fine: {date: "2026-11-20"}}}], answer: {any: [["13", "12"]]}}}
+    - {user: "E di calendario?", checks: {answer: {contains: ["16"]}}}
+    - {user: "Se dal 20 novembre aggiungo 5 giorni lavorativi, che giorno è?", checks: {calls: [{tool: aggiungi_giorni_lavorativi, args: {data: {date: "2026-11-20"}, giorni: 5}}], answer: {any: [["27 novembre", "2026-11-27", "27/11"]]}}}

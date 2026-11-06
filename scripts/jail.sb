@@ -1,0 +1,25 @@
+;; Kernel sandbox (macOS sandbox-exec) for model runs: the run writes only into its own folder, has no
+;; network, and under the user's home reads only the repo, the models and the Python install. It contains file
+;; writes and network access of our own code; it is not a defence against hostile code (process execution,
+;; IPC and reads outside the home stay allowed).
+;; Used through scripts/jailed.sh, which passes REPO, RUN, MODELS, PYHOME and USERHOME.
+(version 1)
+(allow default)
+
+;; no network at all: the envs serve fixtures in-process
+(deny network*)
+
+;; reads under the user's home only where the run needs them
+(deny file-read* (subpath (param "USERHOME")))
+(allow file-read*
+  (literal (param "USERHOME"))
+  (subpath (param "REPO"))
+  (subpath (param "MODELS"))
+  (subpath (param "PYHOME")))
+
+;; writes only into the run folder (its tmp included) and the null device
+(deny file-write*)
+(allow file-write*
+  (subpath (param "RUN"))
+  (literal "/dev/null")
+  (literal "/dev/dtracehelper"))

@@ -1,0 +1,11 @@
+FATTURA N. 87/2026 del 31/10/2026
+Fornitore: Studio Grafico Levante s.r.l., P.IVA 02345678901
+Cliente: Associazione Culturale Il Faro
+
+Descrizione: progettazione grafica materiali evento
+Imponibile: 1.250,00 EUR
+IVA 22%: 275,00 EUR
+Totale: 1.525,00 EUR
+
+Pagamento: bonifico entro il 30/11/2026
+IBAN: IT60X0542811101000000123456
